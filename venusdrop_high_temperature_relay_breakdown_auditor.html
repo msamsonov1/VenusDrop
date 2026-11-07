@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VenusDrop: High-Temperature Solid-State Relay (SiC-JFET) Breakdown Auditor</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- MathJax Configuration (Must precede script load) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #04060c;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .formula-box {
+      background-color: #030712;
+      border: 1px solid #1f2937;
+      padding: 0.85rem;
+      border-radius: 0.5rem;
+      color: #38bdf8;
+      overflow-x: auto;
+    }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+    /* Glow utilities */
+    .glow-cyan {
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.25);
+    }
+    .glow-rose {
+      box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
+    }
+    .glow-amber {
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-white">
+
+  <!-- TOP STATUS BAR & HEADER -->
+  <header class="border-b border-gray-800/80 bg-gray-950/70 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-gradient-to-tr from-amber-500/20 to-cyan-500/20 border border-cyan-500/40 rounded-lg text-cyan-400">
+          <i data-lucide="shield-alert" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+              VenusDrop <span class="text-xs font-mono-code font-semibold px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-700/60 text-cyan-300">SiC-JFET AUDITOR</span>
+            </h1>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30">
+              <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+              Venus In-Situ (465°C / 90 atm CO₂)
+            </span>
+          </div>
+          <p class="text-xs text-gray-400">High-Temperature Solid-State Relay Pinch-Off Drift & Thermal Runaway Mitigation Engine</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center space-x-1 bg-gray-900/80 p-1 rounded-xl border border-gray-800 font-medium text-xs sm:text-sm">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-cyan-400 bg-gray-800/90 shadow-sm">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>Live Telemetry & HUD</span>
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-gray-400 hover:text-gray-200">
+          <i data-lucide="cpu" class="w-4 h-4"></i>
+          <span>Physics & JFET Model</span>
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-gray-400 hover:text-gray-200">
+          <i data-lucide="file-check-2" class="w-4 h-4"></i>
+          <span>NASA SBIR/STTR ($225k)</span>
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-gray-400 hover:text-gray-200">
+          <i data-lucide="trending-up" class="w-4 h-4"></i>
+          <span>Commercial ARR ($218M)</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MAIN VIEW CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD      -->
+    <!-- ========================================== -->
+    <section id="viewSim" class="space-y-6">
+      
+      <!-- Top Alert Notification Bar -->
+      <div id="simAlarmBanner" class="p-3.5 rounded-xl border border-gray-800 bg-gray-900/60 backdrop-blur flex items-center justify-between text-xs sm:text-sm transition-all">
+        <div class="flex items-center space-x-3">
+          <span id="systemStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="font-mono-code font-bold uppercase tracking-wide text-gray-300" id="systemStatusTitle">STATE: NOMINAL PINCH-OFF REGIME</span>
+          <span class="hidden md:inline-block text-gray-500">|</span>
+          <span class="hidden md:inline-block text-gray-400" id="systemStatusDesc">Active gate driver compensating intrinsic leakage current via dynamic PWM holding duty cycle.</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-xs font-mono-code text-cyan-400 bg-cyan-950/70 border border-cyan-800/80 px-2 py-1 rounded">
+            BUS V: 28.0V DC
+          </span>
+          <span id="breakerStatusBadge" class="text-xs font-mono-code text-emerald-300 bg-emerald-950/80 border border-emerald-700 px-2 py-1 rounded font-semibold">
+            ALL BUSES LOCKED
+          </span>
+        </div>
+      </div>
+
+      <!-- Main Interactive Grid: Canvas + Phase-Space Chart -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Column: Microscopic SiC-JFET Junction Cross-Section Canvas -->
+        <div class="lg:col-span-6 bg-gray-900/50 border border-gray-800/90 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="circuit-board" class="w-4 h-4 text-cyan-400"></i>
+              <span class="text-sm font-semibold tracking-wide text-white">4H-SiC Normally-On JFET Die Junction</span>
+            </div>
+            <span class="text-xs font-mono-code text-gray-400">Micro-Scale Depletion & Thermionic Drift</span>
+          </div>
+
+          <!-- HTML5 Canvas for Physical Junction -->
+          <div class="relative w-full h-[270px] bg-[#03050a] rounded-xl border border-gray-800 overflow-hidden">
+            <canvas id="jfetCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Canvas Overlay Legend -->
+            <div class="absolute bottom-2 left-2 flex flex-wrap gap-2 pointer-events-none text-[10px] font-mono-code bg-gray-950/80 p-1.5 rounded border border-gray-800/80">
+              <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span> Electrons ($n_e$)</div>
+              <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400 inline-block"></span> Intrinsic Thermionic Holes</div>
+              <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-violet-400 inline-block"></span> Depletion Barrier ($W_d$)</div>
+            </div>
+
+            <div class="absolute top-2 right-2 text-right pointer-events-none font-mono-code text-[10px]">
+              <div class="text-gray-400">Intrinsic $n_i(T)$: <span id="overlayNi" class="text-cyan-300 font-bold">1.24e9 cm⁻³</span></div>
+              <div class="text-gray-400">Leakage $I_{\text{leak}}$: <span id="overlayIleak" class="text-amber-400 font-bold">18.4 µA</span></div>
+              <div class="text-gray-400">Pinch Voltage $V_p$: <span id="overlayVp" class="text-violet-400 font-bold">-7.42 V</span></div>
+            </div>
+          </div>
+
+          <!-- Quick Hardware Status Strip -->
+          <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-800/80 text-center font-mono-code text-xs">
+            <div class="bg-gray-950/60 p-2 rounded-lg border border-gray-800">
+              <span class="text-gray-400 block text-[10px]">Pinch Barrier Width</span>
+              <span id="metricDepletion" class="text-cyan-400 font-bold">1.42 µm [ISOLATED]</span>
+            </div>
+            <div class="bg-gray-950/60 p-2 rounded-lg border border-gray-800">
+              <span class="text-gray-400 block text-[10px]">Die Power Dissipation</span>
+              <span id="metricPowerLoss" class="text-amber-400 font-bold">0.42 W</span>
+            </div>
+            <div class="bg-gray-950/60 p-2 rounded-lg border border-gray-800">
+              <span class="text-gray-400 block text-[10px]">Latch-Up Margin</span>
+              <span id="metricLatchMargin" class="text-emerald-400 font-bold">+18.5 dB</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Phase Space Chart (T vs Duty Cycle D) -->
+        <div class="lg:col-span-6 bg-gray-900/50 border border-gray-800/90 rounded-2xl p-4 flex flex-col justify-between shadow-xl">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="crosshair" class="w-4 h-4 text-cyan-400"></i>
+              <span class="text-sm font-semibold tracking-wide text-white">Diagnostic Phase Space: $T$ vs $D$</span>
+            </div>
+            <span class="text-xs font-mono-code text-cyan-400 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800">
+              Thermal Runaway Boundary
+            </span>
+          </div>
+
+          <!-- Chart.js Phase Space Plot -->
+          <div class="relative w-full h-[270px]">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-800/80 text-[11px] font-mono-code text-gray-400">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-0.5 bg-emerald-400 inline-block"></span> Nominal Pinch Corridor
+              <span class="w-2.5 h-0.5 bg-rose-500 inline-block border-t border-dashed"></span> Latch-Up Threshold
+            </div>
+            <div class="text-right text-gray-300">
+              Current State: (<span id="txtT" class="text-amber-400">465°C</span>, <span id="txtD" class="text-cyan-400">62.4%</span>)
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Secondary Telemetry Plots & Dynamic Closed-Loop Controllers -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Closed-Loop Control & Fault Injection Module -->
+        <div class="lg:col-span-4 bg-gray-900/50 border border-gray-800/90 rounded-2xl p-5 space-y-5">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+              <h2 class="text-sm font-semibold text-white">Closed-Loop Auditor & Forcing</h2>
+            </div>
+            <div class="flex items-center space-x-1.5">
+              <span class="text-[10px] font-mono-code text-cyan-400">AUTO-SHED</span>
+              <input type="checkbox" id="autoShedToggle" checked class="w-4 h-4 accent-cyan-500 rounded cursor-pointer">
+            </div>
+          </div>
+
+          <!-- Parameter Slider 1: Temperature -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-300">Surface Temp ($T$)</span>
+              <span id="sliderValTemp" class="font-mono-code text-amber-400 font-bold">465 °C</span>
+            </div>
+            <input type="range" id="sliderTemp" min="300" max="600" step="1" value="465"
+              class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+            <div class="flex justify-between text-[10px] text-gray-500 font-mono-code">
+              <span>300°C (Descent)</span>
+              <span>465°C (Venus Mean)</span>
+              <span>600°C (Severe Anomaly)</span>
+            </div>
+          </div>
+
+          <!-- Parameter Slider 2: Manual Duty Cycle Override -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-300">Gate PWM Holding Duty Cycle ($D$)</span>
+              <span id="sliderValDuty" class="font-mono-code text-cyan-400 font-bold">62.5 %</span>
+            </div>
+            <input type="range" id="sliderDuty" min="10" max="95" step="0.5" value="62.5"
+              class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+            <div class="flex justify-between text-[10px] text-gray-500 font-mono-code">
+              <span>10% (Weak Off)</span>
+              <span>Nominal ($D_{\text{pinch}}$)</span>
+              <span>95% (Gate Saturation)</span>
+            </div>
+          </div>
+
+          <!-- Parameter Slider 3: Ambient Pressure (Carbon Dioxide 90 atm) -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-300">Venus Atmosphere Press ($P$)</span>
+              <span id="sliderValPressure" class="font-mono-code text-violet-400 font-bold">92.0 atm</span>
+            </div>
+            <input type="range" id="sliderPressure" min="1" max="130" step="1" value="92"
+              class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-violet-500">
+            <div class="flex justify-between text-[10px] text-gray-500 font-mono-code">
+              <span>1 atm (Earth)</span>
+              <span>92 atm (Surface)</span>
+              <span>130 atm (Deep Trench)</span>
+            </div>
+          </div>
+
+          <!-- Fault Injection & Stress Buttons -->
+          <div class="pt-2 border-t border-gray-800 space-y-2">
+            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Stress Testing Injections</span>
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="injectThermalSurge()" class="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5">
+                <i data-lucide="flame" class="w-3.5 h-3.5"></i>
+                <span>Thermal Spike (+60°C)</span>
+              </button>
+              <button onclick="injectGatePinchDecay()" class="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5">
+                <i data-lucide="zap-off" class="w-3.5 h-3.5"></i>
+                <span>Gate Bias Drift</span>
+              </button>
+            </div>
+            <button onclick="resetToNominalVenus()" class="w-full px-3 py-2 bg-gray-800/80 hover:bg-gray-800 text-gray-300 border border-gray-700 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+              <span>Reset Nominal 465°C Baseline</span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Middle Column: Sub-Bus Load Shedding Matrix & Power Draw -->
+        <div class="lg:col-span-4 bg-gray-900/50 border border-gray-800/90 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-3">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="network" class="w-4 h-4 text-cyan-400"></i>
+                <h2 class="text-sm font-semibold text-white">Isolated Solid-State Breaker Channels</h2>
+              </div>
+              <span class="text-xs font-mono-code text-gray-400">Auto-Tripping</span>
+            </div>
+
+            <!-- Channels Matrix -->
+            <div class="space-y-2.5 font-mono-code text-xs">
+              
+              <!-- Channel 1: Critical (Never Shed) -->
+              <div class="p-2.5 rounded-xl bg-gray-950/70 border border-gray-800 flex items-center justify-between">
+                <div>
+                  <div class="flex items-center space-x-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="text-gray-200 font-bold">CH-01: Lander Command & Telemetry</span>
+                  </div>
+                  <span class="text-[10px] text-gray-400">Priority: Tier-0 (Life-Critical) | 38 W</span>
+                </div>
+                <span class="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800 rounded text-[10px]">
+                  ENGAGED
+                </span>
+              </div>
+
+              <!-- Channel 2: Science Payload (Raman Spectrometer) -->
+              <div id="cardCh2" class="p-2.5 rounded-xl bg-gray-950/70 border border-gray-800 flex items-center justify-between transition-all">
+                <div>
+                  <div class="flex items-center space-x-1.5">
+                    <span id="dotCh2" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="text-gray-200 font-bold">CH-02: UV-Raman Spectrometer</span>
+                  </div>
+                  <span class="text-[10px] text-gray-400">Priority: Tier-1 (Science Core) | 85 W</span>
+                </div>
+                <span id="badgeCh2" class="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800 rounded text-[10px]">
+                  ENGAGED
+                </span>
+              </div>
+
+              <!-- Channel 3: Secondary Science (Regolith Drill Motor) -->
+              <div id="cardCh3" class="p-2.5 rounded-xl bg-gray-950/70 border border-gray-800 flex items-center justify-between transition-all">
+                <div>
+                  <div class="flex items-center space-x-1.5">
+                    <span id="dotCh3" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="text-gray-200 font-bold">CH-03: Sub-Surface Rotary Drill</span>
+                  </div>
+                  <span class="text-[10px] text-gray-400">Priority: Tier-2 (High Surge) | 160 W</span>
+                </div>
+                <span id="badgeCh3" class="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800 rounded text-[10px]">
+                  ENGAGED
+                </span>
+              </div>
+
+              <!-- Channel 4: Non-Essential (Atmospheric Sounding LiDAR) -->
+              <div id="cardCh4" class="p-2.5 rounded-xl bg-gray-950/70 border border-gray-800 flex items-center justify-between transition-all">
+                <div>
+                  <div class="flex items-center space-x-1.5">
+                    <span id="dotCh4" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="text-gray-200 font-bold">CH-04: Nephometric Cloud LiDAR</span>
+                  </div>
+                  <span class="text-[10px] text-gray-400">Priority: Tier-3 (First-to-Shed) | 65 W</span>
+                </div>
+                <span id="badgeCh4" class="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800 rounded text-[10px]">
+                  ENGAGED
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Total Power Draw Monitor -->
+          <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between">
+            <div>
+              <span class="text-gray-400 text-xs block">Active Bus Power Draw</span>
+              <span id="totalBusPower" class="text-lg font-mono-code font-bold text-cyan-300">348 W / 400 W Max</span>
+            </div>
+            <div class="text-right">
+              <span class="text-gray-400 text-xs block">Thermal Margin</span>
+              <span id="thermalMarginPct" class="text-lg font-mono-code font-bold text-emerald-400">+14.2% Safe</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Secondary Time-Series Charts -->
+        <div class="lg:col-span-4 bg-gray-900/50 border border-gray-800/90 rounded-2xl p-5 space-y-4 shadow-xl">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="line-chart" class="w-4 h-4 text-cyan-400"></i>
+              <h2 class="text-sm font-semibold text-white">Transient Leakage & PWM Duty</h2>
+            </div>
+            <span class="text-xs font-mono-code text-gray-400">100 ms Telemetry</span>
+          </div>
+
+          <!-- Mini Chart 1: Reverse Leakage Current -->
+          <div class="h-[120px] relative">
+            <canvas id="leakageChart"></canvas>
+          </div>
+
+          <!-- Mini Chart 2: Dynamic Compensated Duty Cycle -->
+          <div class="h-[120px] relative pt-2 border-t border-gray-800/80">
+            <canvas id="dutyTimeChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL   -->
+    <!-- ========================================== -->
+    <section id="viewPhysics" class="hidden space-y-6">
+      <div class="border-b border-gray-800 pb-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i data-lucide="atom" class="w-6 h-6 text-cyan-400"></i>
+          Solid-State Breaker Physics in Supercritical Venusian Atmospheres
+        </h2>
+        <p class="text-gray-400 text-sm mt-1">
+          Detailed electro-thermal and quantum carrier generation models governing 4H-SiC junction field effect transistors at $465^\circ\text{C}$ (738 K) under 90 atm dense $CO_2$.
+        </p>
+      </div>
+
+      <!-- 4 Core Physics Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Physics Card 1: Intrinsic Carrier Generation & Bandgap Narrowing -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-cyan-400">
+            <i data-lucide="sun" class="w-5 h-5"></i>
+            <h3 class="font-semibold text-white">1. Intrinsic Carrier Explosion & Bandgap Shrinkage</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            While Silicon (Si) fails completely beyond $175^\circ\text{C}$ due to intrinsic carrier runaway ($n_i \approx N_D$), 4H-Silicon Carbide maintains wide-bandgap properties ($E_g \approx 3.26\text{ eV}$ at 300 K). However, at Venus surface conditions ($738\text{ K}$), the bandgap shrinks via the Varshni empirical relation, triggering exponential thermal generation across the depletion barrier:
+          </p>
+          <div class="formula-box">
+            $$E_g(T) = E_g(0) - \frac{\alpha T^2}{T + \beta}, \quad n_i(T) = \sqrt{N_c N_v} \exp\left(-\frac{E_g(T)}{2 k_B T}\right)$$
+          </div>
+          <p class="text-xs text-gray-400">
+            Where $\alpha = 3.3 \times 10^{-4}\text{ eV/K}$, $\beta = 0\text{ K}$, and $N_c, N_v$ scale as $T^{3/2}$. At $465^\circ\text{C}$, $n_i$ rises by over 11 orders of magnitude relative to room temperature, dramatically elevating thermal generation-recombination currents in reverse-biased p-n junction gates.
+          </p>
+        </div>
+
+        <!-- Physics Card 2: Depletion Width & Gate Pinch-Off Dynamics -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-amber-400">
+            <i data-lucide="layers" class="w-5 h-5"></i>
+            <h3 class="font-semibold text-white">2. High-Temperature JFET Pinch-Off Mechanics</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            A normally-on SiC-JFET conducts through an n-type channel of metallurgical thickness $2a$ and donor concentration $N_D$. To interrupt fault currents or isolate buses, gate drivers apply a reverse bias $V_{GS} < 0$. The depletion width $W_d$ must bridge the metallurgical channel to establish isolation:
+          </p>
+          <div class="formula-box">
+            $$W_d(T) = \sqrt{\frac{2 \varepsilon_s (V_{bi}(T) - V_{GS})}{q N_D}}, \quad V_p(T) = \frac{q N_D a^2}{2 \varepsilon_s} - V_{bi}(T)$$
+          </div>
+          <p class="text-xs text-gray-400">
+            As built-in potential $V_{bi}(T) = \frac{k_B T}{q} \ln\left(\frac{N_A N_D}{n_i(T)^2}\right)$ drops steeply with increasing temperature, the effective pinch-off threshold shifts toward more negative potentials, demanding increased gate holding drive.
+          </p>
+        </div>
+
+        <!-- Physics Card 3: Reverse Leakage & PWM Duty Cycle Adaptation -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-emerald-400">
+            <i data-lucide="cpu" class="w-5 h-5"></i>
+            <h3 class="font-semibold text-white">3. Closed-Loop Gate Driver Duty Cycle Inversion</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            To prevent continuous gate oxide stress (as seen in MOSFET failures), normally-on JFET drivers use a high-frequency switching inductor or pulsed charge pump to sustain negative bias. Reverse leakage $I_{\text{leak}}$ rapidly discharges the gate capacitance $C_{iss}$, mandating a closed-loop dynamic duty cycle $D(T)$:
+          </p>
+          <div class="formula-box">
+            $$I_{\text{leak}}(T) = q A \frac{W_d(T) n_i(T)}{2 \tau_0} + q A \frac{D_p n_i(T)^2}{L_p N_D}, \quad D_{\text{opt}}(T) = \frac{I_{\text{leak}}(T) \cdot \Delta t}{C_{iss} \Delta V_{GS}} + D_0$$
+          </div>
+          <p class="text-xs text-gray-400">
+            If $D(T)$ exceeds the safe thermal pinch threshold $D_{\text{crit}}(T)$, the driver circuits dissipate excess localized power ($P_{\text{gate}} = D \cdot V_{GS} \cdot I_{\text{leak}}$), initiating catastrophic latch-up runaway across the breaker module.
+          </p>
+        </div>
+
+        <!-- Physics Card 4: High-Pressure CO2 Supercritical Gas Convection -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-violet-400">
+            <i data-lucide="wind" class="w-5 h-5"></i>
+            <h3 class="font-semibold text-white">4. Venus Supercritical Fluid Boundary Cooling</h3>
+          </div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            At $90\text{ atm}$ and $465^\circ\text{C}$, the Venusian atmosphere acts as a supercritical fluid with density $\rho \approx 65\text{ kg/m}^3$ and dynamic viscosity $\mu \approx 3.2 \times 10^{-5}\text{ Pa}\cdot\text{s}$. Heat transfer away from the ceramic circuit package is governed by high-Rayleigh natural convection:
+          </p>
+          <div class="formula-box">
+            $$\text{Ra}_L = \frac{g \beta_T (T_s - T_\infty) L^3}{\nu \alpha}, \quad \text{Nu}_L = 0.59 (\text{Ra}_L)^{1/4}, \quad h = \frac{\text{Nu}_L k_{CO2}}{L}$$
+          </div>
+          <p class="text-xs text-gray-400">
+            Dense $CO_2$ exhibits superior heat transfer ($h \approx 180\text{ W/m}^2\text{K}$) compared to Earth ambient air, but internal sealed electronics bays experience severe thermal soaking with zero internal convection unless actively ventilated.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Algorithmic Inversion Formulation Card -->
+      <div class="bg-gray-900/70 border border-cyan-900/50 rounded-2xl p-5 space-y-3">
+        <h3 class="text-md font-bold text-cyan-300 flex items-center gap-2">
+          <i data-lucide="binary" class="w-5 h-5 text-cyan-400"></i>
+          VenusDrop Autonomous State Observer & Pre-Runaway Channel Shedding
+        </h3>
+        <p class="text-xs text-gray-300">
+          The software maintains a continuous real-time estimation of the system's phase distance $\mathcal{M}(T, D)$ from the empirical latch-up bifurcation manifold $\mathcal{S}_{\text{latch}}$:
+        </p>
+        <div class="formula-box text-center">
+          $$\mathcal{M}(t) = D_{\text{crit}}(T) - D_{\text{measured}}(t) = \left[ D_0 + \kappa_1 \cdot \exp\left(-\frac{E_a}{k_B T}\right) \right] - D(t)$$
+        </div>
+        <div class="text-xs text-gray-400 space-y-1">
+          <p>$\bullet$ <strong>Condition 1 ($\mathcal{M} > 0.15$):</strong> All relay channels operating nominally in clean pinch-off state.</p>
+          <p>$\bullet$ <strong>Condition 2 ($0.05 \le \mathcal{M} \le 0.15$):</strong> Warning Threshold. Auditor activates autonomous PWM frequency re-tuning ($100\text{ kHz} \to 250\text{ kHz}$).</p>
+          <p>$\bullet$ <strong>Condition 3 ($\mathcal{M} < 0.05$):</strong> Thermal runaway imminent. Autonomous load shedder de-energizes CH-04 and CH-03 within $1.8\text{ ms}$, dropping main bus dissipation by 65% and restoring gate pinch-off equilibrium before destructive latch-up.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: NASA SBIR/STTR PROPOSAL & TRANSITION-->
+    <!-- ========================================== -->
+    <section id="viewProposal" class="hidden space-y-6">
+      
+      <!-- Solicitation & Partner Header -->
+      <div class="bg-gradient-to-r from-cyan-950/40 via-gray-900/60 to-amber-950/30 border border-cyan-800/40 rounded-2xl p-6">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-3">
+          <span class="px-3 py-1 rounded-full text-xs font-mono-code bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+            NASA SBIR/STTR Solicitations | Topic Z12.01
+          </span>
+          <span class="text-xs font-mono-code text-gray-400">Phase I Budget: $225,000 | 6-Month Period of Performance</span>
+        </div>
+        <h2 class="text-xl font-bold text-white">
+          Venus Long-Life In-Situ Surface Station Electronics: Solid-State Power Protection
+        </h2>
+        <p class="text-sm text-gray-300 mt-2 max-w-4xl leading-relaxed">
+          Developing an autonomous breakdown auditor and dynamic gate driver software framework for high-temperature ($465^\circ\text{C}$ / 90 atm) 4H-SiC junction field effect transistor (JFET) solid-state relays, eliminating mechanical contact welding and bus latch-up on long-duration Venusian surface missions.
+        </p>
+      </div>
+
+      <!-- University Partner & Budget Breakdown (30% STTR Mandatory) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- STTR Partner Card -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-amber-400">
+            <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+            <h3 class="font-semibold text-white">Research Partner (STTR 30%)</h3>
+          </div>
+          <div class="text-sm font-bold text-gray-200">
+            University of Central Florida (UCF)
+          </div>
+          <p class="text-xs text-gray-400 leading-relaxed">
+            Center for Advanced Turbomachinery and Energy Research (CATER) & High-Temperature Materials Laboratory. Providing direct access to high-pressure supercritical $CO_2$ autoclaves and optical laser-heated test chambers capable of 90 atm at $550^\circ\text{C}$.
+          </p>
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-gray-800 font-mono-code text-xs text-cyan-300">
+            Subcontract Allocation: $67,500 (30.0%)
+          </div>
+        </div>
+
+        <!-- Small Business Lead -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-cyan-400">
+            <i data-lucide="briefcase" class="w-5 h-5"></i>
+            <h3 class="font-semibold text-white">Small Business Lead (70%)</h3>
+          </div>
+          <div class="text-sm font-bold text-gray-200">
+            RFWaveCode Aerodynamics & Power Systems
+          </div>
+          <p class="text-xs text-gray-400 leading-relaxed">
+            Leading firmware synthesis, real-time edge observer state machine development, transient phase-space drift algorithms, and custom SiC high-temperature gate driver PCB packaging.
+          </p>
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-gray-800 font-mono-code text-xs text-cyan-300">
+            Direct Research Allocation: $157,500 (70.0%)
+          </div>
+        </div>
+
+        <!-- Mission Integration -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-emerald-400">
+            <i data-lucide="rocket" class="w-5 h-5"></i>
+            <h3 class="font-semibold text-white">NASA Infusion Target</h3>
+          </div>
+          <div class="text-sm font-bold text-gray-200">
+            Long-Life In-situ Solar System Explorer (LLISSE)
+          </div>
+          <p class="text-xs text-gray-400 leading-relaxed">
+            Direct plug-in compatibility with NASA Glenn Research Center (GRC) high-temperature SiC JFET logic circuits, replacing heavy mechanical relays for 60-day surface lifespan missions.
+          </p>
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-gray-800 font-mono-code text-xs text-emerald-300">
+            Target Readiness: TRL-3 to TRL-5
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 6-Month Work Breakdown Structure -->
+      <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-4">
+        <h3 class="text-md font-bold text-white flex items-center gap-2">
+          <i data-lucide="calendar" class="w-5 h-5 text-cyan-400"></i>
+          Phase I Work Breakdown Schedule (Months 1–6)
+        </h3>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <div class="p-4 rounded-xl bg-gray-950/80 border border-gray-800 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-mono-code text-cyan-400 font-bold">MILESTONE 1</span>
+              <span class="text-[10px] text-gray-400">M1 - M2</span>
+            </div>
+            <h4 class="text-xs font-semibold text-gray-200">Electro-Thermal Model</h4>
+            <p class="text-[11px] text-gray-400">
+              Calibrate TCAD models of 4H-SiC JFET reverse gate leakage across $300^\circ\text{C}$ to $550^\circ\text{C}$ in supercritical $CO_2$ environments.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-gray-950/80 border border-gray-800 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-mono-code text-amber-400 font-bold">MILESTONE 2</span>
+              <span class="text-[10px] text-gray-400">M3 - M4</span>
+            </div>
+            <h4 class="text-xs font-semibold text-gray-200">State Observer Synthesis</h4>
+            <p class="text-[11px] text-gray-400">
+              Deploy phase-space boundary detection kernel $(T, D)$ on rad-hard RISC-V microcontroller with $<50\mu\text{s}$ execution latency.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-gray-950/80 border border-gray-800 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-mono-code text-emerald-400 font-bold">MILESTONE 3</span>
+              <span class="text-[10px] text-gray-400">M4 - M5</span>
+            </div>
+            <h4 class="text-xs font-semibold text-gray-200">UCF Chamber Testing</h4>
+            <p class="text-[11px] text-gray-400">
+              Validate 4-channel power shedding breadboard inside UCF CATER autoclave at $465^\circ\text{C}$ and 90 atm under simulated short faults.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-gray-950/80 border border-gray-800 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-mono-code text-violet-400 font-bold">MILESTONE 4</span>
+              <span class="text-[10px] text-gray-400">M6</span>
+            </div>
+            <h4 class="text-xs font-semibold text-gray-200">Phase II Spec & Transition</h4>
+            <p class="text-[11px] text-gray-400">
+              Deliver complete breadboard test logs, NASA GRC interface control documents (ICDs), and $1.15M Phase II transition roadmap.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Phase II Transition & Hardware Roadmap -->
+      <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+        <h3 class="text-md font-bold text-white flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-5 h-5 text-emerald-400"></i>
+          Phase II Hardware Maturation & NASA Flight Heritage Path
+        </h3>
+        <p class="text-xs text-gray-300 leading-relaxed">
+          Following successful Phase I autoclave demonstration, Phase II ($1,150,000 / 24 Months) will package the VenusDrop auditor into a ceramic multi-chip module (MCM) utilizing platinum-metallized silicon carbide interconnects, rated for $1,500\text{ hours}$ continuous operation at $480^\circ\text{C}$. Testing will transition to the NASA Glenn Extreme Environments Rig (GEER) in Cleveland, OH, exposing flight-like packages to multi-gas Venusian atmospheric chemistry ($CO_2$, $SO_2$, $HF$, $HCl$).
+        </p>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR         -->
+    <!-- ========================================== -->
+    <section id="viewARR" class="hidden space-y-6">
+      
+      <!-- Executive Summary & Valuation Callout -->
+      <div class="bg-gradient-to-r from-emerald-950/40 via-gray-900/60 to-cyan-950/40 border border-emerald-800/40 rounded-2xl p-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <span class="px-3 py-1 rounded-full text-xs font-mono-code bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+              Commercial Dual-Use & Civil Infrastructure SaaS
+            </span>
+            <h2 class="text-2xl font-bold text-white mt-2">
+              $218.4M Mature Nationwide ARR Opportunity
+            </h2>
+            <p class="text-sm text-gray-300 mt-1 max-w-3xl">
+              Applying space-proven extreme-temperature SiC solid-state switching intelligence to geothermal wellheads, commercial aviation, deep oil exploration, grid-scale fast EV storage, and hypersonic engine FADEC.
+            </p>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-gray-400 uppercase font-mono-code block">Implied Enterprise Valuation (10x SaaS)</span>
+            <span class="text-3xl font-extrabold font-mono-code text-cyan-300">$2.18 Billion</span>
+            <span class="text-[11px] text-gray-500 block">Deep-Tech Hardware-Enabled Runtime Multiple</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commercial ARR Distribution Table -->
+      <div class="bg-gray-900/50 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i>
+            Commercial Vertical Breakdown & Target Unit Economics
+          </h3>
+          <span class="text-xs font-mono-code text-gray-400">Civil & Commercial Infrastructure Focus</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left font-mono-code text-xs">
+            <thead class="bg-gray-950 text-gray-400 border-b border-gray-800 uppercase text-[10px]">
+              <tr>
+                <th class="p-3.5">Commercial Target Vertical</th>
+                <th class="p-3.5">Operating Temp ($T$)</th>
+                <th class="p-3.5">Target Asset Base (US)</th>
+                <th class="p-3.5">Software Runtime Metric</th>
+                <th class="p-3.5 text-right">Mature Annual ARR</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800 text-gray-300">
+              <tr class="hover:bg-gray-800/40 transition">
+                <td class="p-3.5 font-bold text-white">Enhanced Geothermal Wells (EGS)</td>
+                <td class="p-3.5 text-amber-400">$350^\circ\text{C} - 420^\circ\text{C}$</td>
+                <td class="p-3.5">8,400 Downhole Tools</td>
+                <td class="p-3.5">$6,500 / well-year</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$54.6M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/40 transition">
+                <td class="p-3.5 font-bold text-white">Commercial Aviation Hybrid Propulsion</td>
+                <td class="p-3.5 text-amber-400">$260^\circ\text{C} - 320^\circ\text{C}$</td>
+                <td class="p-3.5">14,200 Nacelle Breakers</td>
+                <td class="p-3.5">$3,200 / aircraft-year</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$45.4M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/40 transition">
+                <td class="p-3.5 font-bold text-white">Deep Downhole Energy Exploration</td>
+                <td class="p-3.5 text-amber-400">$300^\circ\text{C} - 380^\circ\text{C}$</td>
+                <td class="p-3.5">6,800 Logging Strings</td>
+                <td class="p-3.5">$5,800 / drill-tool</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$39.4M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/40 transition">
+                <td class="p-3.5 font-bold text-white">High-Speed Electric Rail Traction Inverters</td>
+                <td class="p-3.5 text-amber-400">$200^\circ\text{C} - 280^\circ\text{C}$</td>
+                <td class="p-3.5">18,500 Bogie Breakers</td>
+                <td class="p-3.5">$1,800 / car-year</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$33.3M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/40 transition">
+                <td class="p-3.5 font-bold text-white">Advanced Nuclear Microreactors (SMR)</td>
+                <td class="p-3.5 text-amber-400">$450^\circ\text{C} - 550^\circ\text{C}$</td>
+                <td class="p-3.5">1,200 Core Nodes</td>
+                <td class="p-3.5">$22,000 / reactor node</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$26.4M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/40 transition">
+                <td class="p-3.5 font-bold text-white">Ultra-Fast 800V/1000V DC EV Depots</td>
+                <td class="p-3.5 text-amber-400">$180^\circ\text{C} - 240^\circ\text{C}$</td>
+                <td class="p-3.5">24,100 Dispenser Racks</td>
+                <td class="p-3.5">$800 / port-year</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$19.3M</td>
+              </tr>
+              <tr class="bg-gray-950 font-bold text-cyan-300">
+                <td class="p-3.5 uppercase" colspan="4">Consolidated Nationwide Annual Recurring Revenue (ARR)</td>
+                <td class="p-3.5 text-right text-sm text-cyan-300">$218.4M</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 6 Industry Deep-Dive Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <!-- Deep Dive 1: Geothermal -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-amber-400">
+            <i data-lucide="flame" class="w-5 h-5"></i>
+            <h4 class="font-bold text-white">Enhanced Geothermal Systems (EGS)</h4>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong>Physics in 1 Sentence:</strong> Downhole sub-surface electronics at $380^\circ\text{C}$ suffer instantaneous gate leakage latch-up when conventional thermal insulation jackets experience mechanical rupture.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong>Why Others Missed This:</strong> Incumbents rely on passive dewar flasks that provide only 4–8 hours of operating lifespan before electronics overheat, forcing expensive pull-out rig operations costing $150,000+ per trip.
+          </p>
+        </div>
+
+        <!-- Deep Dive 2: Aviation -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-cyan-400">
+            <i data-lucide="plane" class="w-5 h-5"></i>
+            <h4 class="font-bold text-white">Next-Gen Hybrid Turbofan Nacelles</h4>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong>Physics in 1 Sentence:</strong> High-power electronic circuit breakers co-located directly inside jet turbine casings face $280^\circ\text{C}$ ambient soaking without external cooling liquid weight penalties.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong>Why Others Missed This:</strong> Aerospace OEMs route heavy, shielded copper cabling through pressurized fuselages to keep electronics in air-conditioned cargo bays, adding hundreds of kilograms of structural deadweight.
+          </p>
+        </div>
+
+        <!-- Deep Dive 3: Downhole Energy -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-emerald-400">
+            <i data-lucide="drill" class="w-5 h-5"></i>
+            <h4 class="font-bold text-white">Deep Directional Drilling & MWD</h4>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong>Physics in 1 Sentence:</strong> Measurement-While-Drilling (MWD) tools experience sudden shock-induced ohmic junction heating that alters JFET pinch-off curves in 10,000-psi fluids.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong>Why Others Missed This:</strong> Drilling operators swap dead tool strings blindly on pre-set time intervals rather than using active $(T, D)$ state observer metrics to extend downhole tool utilization.
+          </p>
+        </div>
+
+        <!-- Deep Dive 4: Electric Rail -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-violet-400">
+            <i data-lucide="train" class="w-5 h-5"></i>
+            <h4 class="font-bold text-white">High-Speed Electric Rail Traction</h4>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong>Physics in 1 Sentence:</strong> Regenerative brake dump circuits mounted on train undercarriages encounter intense aerodynamic thermal stagnation during sustained high-speed braking runs.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong>Why Others Missed This:</strong> Rail transit systems stick with heavy mechanical contactors that arc and weld shut under fault currents, causing widespread catenary line shutdowns.
+          </p>
+        </div>
+
+        <!-- Deep Dive 5: SMR Nuclear -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-rose-400">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+            <h4 class="font-bold text-white">Small Modular Reactor (SMR) Control</h4>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong>Physics in 1 Sentence:</strong> In-containment safety sensors and electromagnet releases operate under continuous $500^\circ\text{C}$ neutron flux where copper wiring and organic insulations degrade.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong>Why Others Missed This:</strong> Nuclear engineers rely on legacy analog thermocouple loops and remote pneumatic actuators that lack microsecond-level fault isolation intelligence.
+          </p>
+        </div>
+
+        <!-- Deep Dive 6: EV Fast Charging -->
+        <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-5 space-y-3">
+          <div class="flex items-center space-x-2 text-cyan-300">
+            <i data-lucide="zap" class="w-5 h-5"></i>
+            <h4 class="font-bold text-white">Megawatt Heavy EV Charging Hubs</h4>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong>Physics in 1 Sentence:</strong> Continuous 1000A DC charging runs generate extreme localized $I^2 R$ junction heat spikes in outdoor enclosures exposed to summer heat waves.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong>Why Others Missed This:</strong> Charging networks oversize mechanical fuses and cycle cooling chillers at full blast rather than running intelligent gate-driver duty cycle compensation algorithms.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Collaboration Call-To-Action Box -->
+      <div class="bg-gray-950 border border-cyan-800/80 rounded-2xl p-6 text-center space-y-3">
+        <h4 class="text-lg font-bold text-white">Partner with RFWaveCode on High-Temperature Solid-State Power</h4>
+        <p class="text-sm text-gray-400 max-w-2xl mx-auto">
+          We license the VenusDrop SiC-JFET breakdown auditor firmware and partner with aerospace prime contractors, energy operators, and research labs for extreme environment power electronics deployment.
+        </p>
+        <div class="pt-2">
+          <a href="mailto:support@rfwavecode.com" class="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium text-sm hover:from-cyan-400 hover:to-blue-500 transition shadow-lg shadow-cyan-500/20">
+            <i data-lucide="mail" class="w-4 h-4"></i>
+            <span>Contact Core Engineering: support@rfwavecode.com</span>
+          </a>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-800/80 bg-gray-950/80 text-gray-500 text-xs py-4">
+    <div class="max-w-7xl mx-auto px-4 flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+        <span>VenusDrop™ Solid-State JFET Auditor | NASA SBIR/STTR Topic Z12.01 Architecture</span>
+      </div>
+      <div>
+        <span>Research Partner: University of Central Florida (UCF) CATER Labs</span>
+      </div>
+      <div class="font-mono-code text-[11px] text-gray-400">
+        Contact: support@rfwavecode.com
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================== -->
+  <!-- JAVASCRIPT ENGINE & LOGIC                  -->
+  <!-- ========================================== -->
+  <script>
+    // TAB SWITCHING ARCHITECTURE
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(activeKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const item = tabMapping[key];
+        const viewEl = document.getElementById(item.viewId);
+        const btnEl = document.getElementById(item.btnId);
+        
+        if (key === activeKey) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-cyan-400 bg-gray-800/90 shadow-sm font-semibold";
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = "flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-all text-gray-400 hover:text-gray-200";
+        }
+      });
+
+      // Typeset formulas if MathJax is loaded
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch(err => console.debug(err));
+      }
+
+      // Re-trigger canvas size if switching back to simulation
+      if (activeKey === 'sim') {
+        setTimeout(() => {
+          resizeCanvas();
+        }, 30);
+      }
+    }
+
+    // SIMULATION STATE MODEL
+    const state = {
+      tempC: 465,             // Temperature in Celsius (Venus surface baseline)
+      dutyCycle: 62.5,        // Gate PWM duty cycle (%)
+      pressureAtm: 92,        // Pressure in atm
+      autoShed: true,         // Automatic load shedding enabled
+      leakageCurrentUa: 18.4, // Reverse leakage in microamps
+      intrinsicNi: 1.24e9,    // Intrinsic carriers (cm^-3)
+      depletionWidthUm: 1.42, // Depletion barrier width in micrometers
+      pinchVoltage: -7.42,    // Pinch voltage (V)
+      powerLossW: 0.42,       // JFET gate/junction power loss (W)
+      latchMarginDb: 18.5,    // Margin to thermal runaway (dB)
+      busLoadPower: 348,      // Active draw in Watts
+      channels: {
+        ch1: true, // Life-critical (Always True)
+        ch2: true, // UV Raman
+        ch3: true, // Rotary Drill
+        ch4: true  // Cloud LiDAR
+      },
+      history: {
+        t: [],
+        d: []
+      },
+      timeSeq: 0
+    };
+
+    // PHYSICAL CONSTANTS FOR 4H-SiC
+    const CONSTANTS = {
+      Eg0: 3.26,         // Bandgap at 0K (eV)
+      alpha: 3.3e-4,     // Varshni parameter
+      kB: 8.61733e-5,    // Boltzmann constant (eV/K)
+      q: 1.602e-19,      // Coulomb
+      eps_s: 9.7 * 8.854e-14, // SiC permittivity F/cm
+      Nd: 2.0e16,        // Channel donor doping cm^-3
+      half_a: 1.5e-4     // Half-channel width in cm (1.5 um)
+    };
+
+    // Calculate Physical Properties from Temp & Pressure
+    function updatePhysicsCalculations() {
+      const T_K = state.tempC + 273.15; // Kelvin
+      
+      // Bandgap shrinkage
+      const Eg_T = CONSTANTS.Eg0 - (CONSTANTS.alpha * (T_K * T_K)) / T_K;
+      
+      // Intrinsic carrier concentration ni(T)
+      const NcNv_eff = 2.5e19 * Math.pow(T_K / 300, 1.5);
+      state.intrinsicNi = NcNv_eff * Math.exp(-Eg_T / (2 * CONSTANTS.kB * T_K));
+      
+      // Built-in voltage Vbi
+      const Vbi = (CONSTANTS.kB * T_K) * Math.log((CONSTANTS.Nd * CONSTANTS.Nd) / (state.intrinsicNi * state.intrinsicNi + 1e-10));
+      
+      // Reverse leakage current scaling exponentially with T
+      // Baseline 1.5uA at 300C, ~18uA at 465C, exploding at >530C
+      const leakageBase = 0.05; // uA
+      state.leakageCurrentUa = leakageBase * Math.exp((state.tempC - 200) / 45.0) * (1 + (state.pressureAtm / 400));
+      
+      // Effective pinch voltage
+      state.pinchVoltage = -((CONSTANTS.q * CONSTANTS.Nd * Math.pow(CONSTANTS.half_a, 2)) / (2 * CONSTANTS.eps_s) - Vbi);
+      
+      // Nominal pinch-off duty cycle requirement to overcome leakage
+      // D_nom = 40% + scaling with leakage
+      const nominalDuty = 35 + (state.leakageCurrentUa * 1.5);
+      
+      // Critical threshold duty cycle before gate runaway latch-up
+      const criticalDuty = 88 - (Math.max(0, state.tempC - 400) * 0.18);
+
+      // Distance to latch-up margin
+      const margin = criticalDuty - state.dutyCycle;
+      state.latchMarginDb = Math.max(-10, Math.min(30, margin * 0.8));
+
+      // Depletion barrier width (in um)
+      // High duty cycle provides sufficient negative gate bias -> full pinch (1.5um)
+      const biasRatio = Math.max(0.1, Math.min(1.2, state.dutyCycle / nominalDuty));
+      state.depletionWidthUm = Math.max(0.1, Math.min(1.5, 1.5 * biasRatio * (1 - (state.leakageCurrentUa / 300))));
+
+      // Gate & Die Power Loss
+      state.powerLossW = 0.08 + (state.leakageCurrentUa * 0.015) + (state.dutyCycle * 0.003);
+
+      // Update HUD Metrics
+      document.getElementById('overlayNi').textContent = state.intrinsicNi.toExponential(2) + " cm⁻³";
+      document.getElementById('overlayIleak').textContent = state.leakageCurrentUa.toFixed(1) + " µA";
+      document.getElementById('overlayVp').textContent = state.pinchVoltage.toFixed(2) + " V";
+      
+      const depEl = document.getElementById('metricDepletion');
+      if (state.depletionWidthUm >= 1.35) {
+        depEl.innerHTML = `<span class="text-cyan-400 font-bold">${state.depletionWidthUm.toFixed(2)} µm [ISOLATED]</span>`;
+      } else if (state.depletionWidthUm >= 0.9) {
+        depEl.innerHTML = `<span class="text-amber-400 font-bold">${state.depletionWidthUm.toFixed(2)} µm [MARGINAL]</span>`;
+      } else {
+        depEl.innerHTML = `<span class="text-rose-400 font-bold">${state.depletionWidthUm.toFixed(2)} µm [LEAKAGE PINCH]</span>`;
+      }
+
+      document.getElementById('metricPowerLoss').textContent = state.powerLossW.toFixed(2) + " W";
+      
+      const marginEl = document.getElementById('metricLatchMargin');
+      if (state.latchMarginDb >= 8) {
+        marginEl.className = "text-emerald-400 font-bold";
+        marginEl.textContent = `+${state.latchMarginDb.toFixed(1)} dB`;
+      } else if (state.latchMarginDb > 0) {
+        marginEl.className = "text-amber-400 font-bold";
+        marginEl.textContent = `+${state.latchMarginDb.toFixed(1)} dB [WARN]`;
+      } else {
+        marginEl.className = "text-rose-400 font-bold animate-pulse";
+        marginEl.textContent = `${state.latchMarginDb.toFixed(1)} dB [RUNAWAY]`;
+      }
+
+      // Update Text Displays
+      document.getElementById('txtT').textContent = `${Math.round(state.tempC)}°C`;
+      document.getElementById('txtD').textContent = `${state.dutyCycle.toFixed(1)}%`;
+
+      // Autonomous Load Shedder Evaluation
+      evaluateAutonomousLoadShedding(criticalDuty);
+    }
+
+    // AUTONOMOUS LOAD SHEDDING ENGINE
+    function evaluateAutonomousLoadShedding(criticalDuty) {
+      const banner = document.getElementById('simAlarmBanner');
+      const dot = document.getElementById('systemStatusDot');
+      const title = document.getElementById('systemStatusTitle');
+      const desc = document.getElementById('systemStatusDesc');
+      const badge = document.getElementById('breakerStatusBadge');
+
+      const isCritical = state.dutyCycle >= criticalDuty || state.latchMarginDb <= 0;
+      const isWarning = state.dutyCycle >= (criticalDuty - 8) || state.latchMarginDb < 6;
+
+      if (isCritical) {
+        // RUNAWAY CONDITION
+        dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping";
+        title.className = "font-mono-code font-bold uppercase tracking-wide text-rose-400";
+        title.textContent = "ALARM: JFET THERMAL LATCH-UP DETECTED!";
+        desc.textContent = "Depletion barrier collapsed. Gate leakage exceeds pinch-off capability. Power bus vulnerable!";
+        badge.className = "text-xs font-mono-code text-rose-300 bg-rose-950/80 border border-rose-700 px-2 py-1 rounded font-semibold animate-pulse";
+        badge.textContent = "CRITICAL EMERGENCY TRIP";
+
+        if (state.autoShed) {
+          // Shed Tier 3 and Tier 2
+          state.channels.ch4 = false;
+          state.channels.ch3 = false;
+          // Compensate gate duty cycle back to safety
+          state.dutyCycle = Math.max(30, criticalDuty - 12);
+          document.getElementById('sliderDuty').value = state.dutyCycle;
+          document.getElementById('sliderValDuty').textContent = state.dutyCycle.toFixed(1) + " %";
+        }
+      } else if (isWarning) {
+        // WARNING CONDITION
+        dot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping";
+        title.className = "font-mono-code font-bold uppercase tracking-wide text-amber-300";
+        title.textContent = "WARNING: APPROACHING PINCH-OFF RUNAWAY BOUNDARY";
+        desc.textContent = "Thermionic carrier emission rising. Gate driver compensating with higher duty cycle.";
+        badge.className = "text-xs font-mono-code text-amber-300 bg-amber-950/80 border border-amber-700 px-2 py-1 rounded font-semibold";
+        badge.textContent = "ADAPTIVE COMPENSATION";
+
+        if (state.autoShed && state.tempC > 490) {
+          // Shed non-essential LiDAR
+          state.channels.ch4 = false;
+        }
+      } else {
+        // NOMINAL CONDITION
+        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400";
+        title.className = "font-mono-code font-bold uppercase tracking-wide text-gray-300";
+        title.textContent = "STATE: NOMINAL PINCH-OFF REGIME";
+        desc.textContent = "Active gate driver compensating intrinsic leakage current via dynamic PWM holding duty cycle.";
+        badge.className = "text-xs font-mono-code text-emerald-300 bg-emerald-950/80 border border-emerald-700 px-2 py-1 rounded font-semibold";
+        badge.textContent = "ALL BUSES LOCKED";
+        
+        // Restore channels if recovered
+        if (state.autoShed && state.tempC < 475) {
+          state.channels.ch3 = true;
+          state.channels.ch4 = true;
+        }
+      }
+
+      // Render Sub-bus Channel Indicators
+      renderChannelUI('Ch2', state.channels.ch2, 'UV-Raman');
+      renderChannelUI('Ch3', state.channels.ch3, 'Rotary Drill');
+      renderChannelUI('Ch4', state.channels.ch4, 'Cloud LiDAR');
+
+      // Compute Total Bus Power
+      let totalW = 38; // CH1 base
+      if (state.channels.ch2) totalW += 85;
+      if (state.channels.ch3) totalW += 160;
+      if (state.channels.ch4) totalW += 65;
+      state.busLoadPower = totalW;
+
+      document.getElementById('totalBusPower').textContent = `${totalW} W / 400 W Max`;
+      
+      const marginPct = ((400 - totalW) / 400 * 100);
+      const marginPctEl = document.getElementById('thermalMarginPct');
+      marginPctEl.textContent = `+${marginPct.toFixed(1)}% Safe`;
+      marginPctEl.className = totalW > 350 ? "text-lg font-mono-code font-bold text-amber-400" : "text-lg font-mono-code font-bold text-emerald-400";
+    }
+
+    function renderChannelUI(chKey, isEngaged, labelName) {
+      const card = document.getElementById('card' + chKey);
+      const dot = document.getElementById('dot' + chKey);
+      const badge = document.getElementById('badge' + chKey);
+      
+      if (isEngaged) {
+        dot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        badge.className = "px-2 py-0.5 bg-emerald-950/80 text-emerald-300 border border-emerald-800 rounded text-[10px]";
+        badge.textContent = "ENGAGED";
+        card.className = "p-2.5 rounded-xl bg-gray-950/70 border border-gray-800 flex items-center justify-between transition-all";
+      } else {
+        dot.className = "w-2 h-2 rounded-full bg-rose-500 animate-pulse";
+        badge.className = "px-2 py-0.5 bg-rose-950/80 text-rose-300 border border-rose-800 rounded text-[10px]";
+        badge.textContent = "SHED / ISOLATED";
+        card.className = "p-2.5 rounded-xl bg-rose-950/20 border border-rose-900/60 flex items-center justify-between transition-all";
+      }
+    }
+
+    // ==========================================
+    // CHART.JS INITIALIZATION
+    // ==========================================
+    let phaseChart, leakageChart, dutyChart;
+
+    function initCharts() {
+      // 1. Phase-Space Chart: T vs D
+      const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+      
+      // Generate nominal line & critical runaway curve across T in [300, 600]
+      const tLabels = [];
+      const nominalCurve = [];
+      const runawayCurve = [];
+
+      for (let t = 300; t <= 600; t += 10) {
+        tLabels.push(t);
+        // Nominal D needed to pinch off:
+        const leakEst = 0.05 * Math.exp((t - 200) / 45.0);
+        const dNom = Math.min(85, 35 + (leakEst * 1.5));
+        nominalCurve.push({ x: t, y: dNom });
+        
+        // Critical runaway threshold:
+        const dCrit = Math.max(40, 88 - (Math.max(0, t - 400) * 0.18));
+        runawayCurve.push({ x: t, y: dCrit });
+      }
+
+      phaseChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Thermal Runaway Limit',
+              data: runawayCurve,
+              showLine: true,
+              borderColor: 'rgba(244, 63, 94, 0.85)',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              fill: {
+                target: 'end',
+                above: 'rgba(244, 63, 94, 0.08)' // Red hazard zone above
+              },
+              pointRadius: 0
+            },
+            {
+              label: 'Nominal Pinch Corridor',
+              data: nominalCurve,
+              showLine: true,
+              borderColor: 'rgba(52, 211, 153, 0.85)',
+              borderWidth: 2,
+              pointRadius: 0
+            },
+            {
+              label: 'State History',
+              data: [],
+              showLine: true,
+              borderColor: 'rgba(6, 182, 212, 0.4)',
+              borderWidth: 1.5,
+              pointRadius: 2,
+              pointBackgroundColor: 'rgba(6, 182, 212, 0.6)'
+            },
+            {
+              label: 'Active Relay Operating Point',
+              data: [{ x: state.tempC, y: state.dutyCycle }],
+              pointRadius: 7,
+              pointHoverRadius: 9,
+              pointBackgroundColor: '#38bdf8',
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              type: 'linear',
+              min: 300,
+              max: 600,
+              title: {
+                display: true,
+                text: 'Junction Temperature T (°C)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y: {
+              min: 10,
+              max: 100,
+              title: {
+                display: true,
+                text: 'Gate PWM Duty Cycle D (%)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#cbd5e1',
+                boxWidth: 12,
+                font: { family: 'Inter', size: 10 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `(${ctx.parsed.x}°C, ${ctx.parsed.y.toFixed(1)}%)`
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Telemetry Chart: Leakage Current vs Time
+      const ctxLeak = document.getElementById('leakageChart').getContext('2d');
+      leakageChart = new Chart(ctxLeak, {
+        type: 'line',
+        data: {
+          labels: Array(25).fill(''),
+          datasets: [{
+            label: 'Reverse Leakage Current (µA)',
+            data: Array(25).fill(18.4),
+            borderColor: '#f59e0b',
+            borderWidth: 1.5,
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            fill: true,
+            pointRadius: 0,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.04)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 8 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#94a3b8', boxWidth: 10, font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          }
+        }
+      });
+
+      // 3. Telemetry Chart: Dynamic Gate Duty Cycle vs Time
+      const ctxDuty = document.getElementById('dutyTimeChart').getContext('2d');
+      dutyChart = new Chart(ctxDuty, {
+        type: 'line',
+        data: {
+          labels: Array(25).fill(''),
+          datasets: [{
+            label: 'Adaptive Gate PWM D (%)',
+            data: Array(25).fill(62.5),
+            borderColor: '#06b6d4',
+            borderWidth: 1.5,
+            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+            fill: true,
+            pointRadius: 0,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              min: 20,
+              max: 95,
+              grid: { color: 'rgba(255, 255, 255, 0.04)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 8 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { color: '#94a3b8', boxWidth: 10, font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // HTML5 CANVAS: PHYSICAL JFET DIE CROSS-SECTION
+    // ==========================================
+    const canvas = document.getElementById('jfetCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 270;
+      canvas.width = w * window.devicePixelRatio;
+      canvas.height = h * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+
+    // Initialize random electron/carrier particles
+    function initParticles() {
+      particles = [];
+      const count = 75;
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * 600,
+          y: 70 + Math.random() * 130,
+          vx: 1.5 + Math.random() * 2.5,
+          vy: (Math.random() - 0.5) * 0.8,
+          isHole: Math.random() < 0.25, // Thermionic hole
+          radius: 1.5 + Math.random() * 1.5
+        });
+      }
+    }
+
+    function renderJfetCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 270;
+
+      // Dark background
+      ctx.fillStyle = '#03050a';
+      ctx.fillRect(0, 0, w, h);
+
+      // JFET Channel Geometry
+      // Top Gate (p+), Center Channel (n-SiC), Bottom Gate (p+)
+      const gateTopHeight = 40;
+      const gateBottomHeight = 40;
+      const channelTop = gateTopHeight;
+      const channelBottom = h - gateBottomHeight;
+      const channelH = channelBottom - channelTop;
+
+      // Draw Top & Bottom P+ Gates (Metallic/Polymer contacts)
+      ctx.fillStyle = '#1e1b4b'; // Deep Indigo P+ Gate
+      ctx.fillRect(40, 0, w - 80, gateTopHeight);
+      ctx.fillRect(40, channelBottom, w - 80, gateBottomHeight);
+
+      // Gate Metallization stripes
+      ctx.strokeStyle = '#4338ca';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(40, 0, w - 80, gateTopHeight);
+      ctx.strokeRect(40, channelBottom, w - 80, gateBottomHeight);
+
+      // Gate Labels
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillStyle = '#a5b4fc';
+      ctx.fillText('p+ Gate Top (V_GS < 0)', 50, 24);
+      ctx.fillText('p+ Gate Bottom (V_GS < 0)', 50, channelBottom + 24);
+
+      // Draw Source & Drain Electrodes on Left & Right
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, channelTop, 40, channelH);
+      ctx.fillRect(w - 40, channelTop, 40, channelH);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.strokeRect(0, channelTop, 40, channelH);
+      ctx.strokeRect(w - 40, channelTop, 40, channelH);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.save();
+      ctx.translate(24, channelTop + channelH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText('SOURCE', -20, 0);
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(w - 18, channelTop + channelH / 2);
+      ctx.rotate(Math.PI / 2);
+      ctx.fillText('DRAIN', -16, 0);
+      ctx.restore();
+
+      // Depletion Region Height: expands from gates into center
+      // Based on state.depletionWidthUm: 1.5um is full pinch-off (regions touch)
+      const maxDepletionPx = (channelH / 2) - 4;
+      const depRatio = Math.min(1.0, state.depletionWidthUm / 1.5);
+      const curDepPx = maxDepletionPx * depRatio;
+
+      // Render Depletion Barriers (Gradient Glow)
+      const topDepGrad = ctx.createLinearGradient(0, channelTop, 0, channelTop + curDepPx);
+      topDepGrad.addColorStop(0, 'rgba(139, 92, 246, 0.45)');
+      topDepGrad.addColorStop(1, 'rgba(139, 92, 246, 0.05)');
+      ctx.fillStyle = topDepGrad;
+      ctx.fillRect(40, channelTop, w - 80, curDepPx);
+
+      const botDepGrad = ctx.createLinearGradient(0, channelBottom, 0, channelBottom - curDepPx);
+      botDepGrad.addColorStop(0, 'rgba(139, 92, 246, 0.45)');
+      botDepGrad.addColorStop(1, 'rgba(139, 92, 246, 0.05)');
+      ctx.fillStyle = botDepGrad;
+      ctx.fillRect(40, channelBottom - curDepPx, w - 80, curDepPx);
+
+      // Depletion boundary lines
+      ctx.strokeStyle = '#c084fc';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(40, channelTop + curDepPx);
+      ctx.lineTo(w - 40, channelTop + curDepPx);
+      ctx.moveTo(40, channelBottom - curDepPx);
+      ctx.lineTo(w - 40, channelBottom - curDepPx);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Center Conduction Neck indication
+      const neckGap = Math.max(0, channelH - (curDepPx * 2));
+      const midY = channelTop + channelH / 2;
+
+      // Thermal Runaway Flash Effect if Latch-Up
+      if (state.latchMarginDb <= 0) {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 12px JetBrains Mono';
+        ctx.fillText('⚠ THERMAL LATCH-UP IN PROGRESS: CONDUCTION PINCH LOST', w / 2 - 180, midY - 6);
+      }
+
+      // Draw and Move Particles
+      const pinchBlocked = neckGap < 8;
+
+      particles.forEach(p => {
+        // Move
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // If particle hits boundaries, wrap around
+        if (p.x > w - 40) {
+          p.x = 45;
+          p.y = channelTop + curDepPx + Math.random() * Math.max(5, neckGap);
+        }
+
+        // Keep within channel bounds
+        const minY = channelTop + curDepPx;
+        const maxY = channelBottom - curDepPx;
+
+        if (pinchBlocked && p.x > (w / 2 - 40) && p.x < (w / 2 + 40)) {
+          // Bounced by depletion pinch barrier
+          p.vx = -Math.abs(p.vx);
+          p.x += p.vx;
+        } else if (p.vx < 0 && p.x < 50) {
+          p.vx = Math.abs(p.vx);
+        }
+
+        if (p.y < channelTop + 2) p.y = channelTop + 5;
+        if (p.y > channelBottom - 2) p.y = channelBottom - 5;
+
+        // Draw particle
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        if (p.isHole) {
+          ctx.fillStyle = '#fb7185'; // Rose hole
+          ctx.shadowColor = '#fb7185';
+          ctx.shadowBlur = 6;
+        } else {
+          ctx.fillStyle = '#38bdf8'; // Cyan electron
+          ctx.shadowColor = '#38bdf8';
+          ctx.shadowBlur = 4;
+        }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      // Channel State Label in center
+      ctx.font = '10px JetBrains Mono';
+      if (pinchBlocked) {
+        ctx.fillStyle = '#34d399';
+        ctx.fillText(`CHANNEL ISOLATED (Pinch Neck: ${neckGap.toFixed(1)} px)`, w / 2 - 110, midY + 3);
+      } else {
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillText(`LEAKAGE CONDUCTION GAP (${neckGap.toFixed(1)} px)`, w / 2 - 100, midY + 3);
+      }
+    }
+
+    // ==========================================
+    // SIMULATION CLOCK & REAL-TIME OBSERVER LOOP
+    // ==========================================
+    let frameCount = 0;
+
+    function simulationStep() {
+      frameCount++;
+      
+      // Update Physics & state calculations
+      updatePhysicsCalculations();
+
+      // Render Canvas
+      renderJfetCanvas();
+
+      // Throttled Chart Updates (every 4 ticks ~ 160ms)
+      if (frameCount % 4 === 0) {
+        state.timeSeq++;
+
+        // 1. Update Phase-Space Chart
+        if (phaseChart) {
+          const ptDataset = phaseChart.data.datasets[3];
+          ptDataset.data = [{ x: state.tempC, y: state.dutyCycle }];
+
+          const histDataset = phaseChart.data.datasets[2];
+          histDataset.data.push({ x: state.tempC, y: state.dutyCycle });
+          if (histDataset.data.length > 20) {
+            histDataset.data.shift();
+          }
+          phaseChart.update('none');
+        }
+
+        // 2. Update Leakage Stream Chart
+        if (leakageChart) {
+          const lData = leakageChart.data.datasets[0].data;
+          // Add small jitter based on temperature
+          const jitter = (Math.random() - 0.5) * (state.leakageCurrentUa * 0.05);
+          lData.push(state.leakageCurrentUa + jitter);
+          lData.shift();
+          leakageChart.update('none');
+        }
+
+        // 3. Update Duty Cycle Stream Chart
+        if (dutyChart) {
+          const dData = dutyChart.data.datasets[0].data;
+          dData.push(state.dutyCycle);
+          dData.shift();
+          dutyChart.update('none');
+        }
+      }
+    }
+
+    // ==========================================
+    // USER CONTROLS & FAULT INJECTION LISTENERS
+    // ==========================================
+    document.getElementById('sliderTemp').addEventListener('input', (e) => {
+      state.tempC = parseFloat(e.target.value);
+      document.getElementById('sliderValTemp').textContent = `${Math.round(state.tempC)} °C`;
+    });
+
+    document.getElementById('sliderDuty').addEventListener('input', (e) => {
+      state.dutyCycle = parseFloat(e.target.value);
+      document.getElementById('sliderValDuty').textContent = `${state.dutyCycle.toFixed(1)} %`;
+    });
+
+    document.getElementById('sliderPressure').addEventListener('input', (e) => {
+      state.pressureAtm = parseFloat(e.target.value);
+      document.getElementById('sliderValPressure').textContent = `${state.pressureAtm.toFixed(1)} atm`;
+    });
+
+    document.getElementById('autoShedToggle').addEventListener('change', (e) => {
+      state.autoShed = e.target.checked;
+    });
+
+    function injectThermalSurge() {
+      state.tempC = Math.min(600, state.tempC + 60);
+      document.getElementById('sliderTemp').value = state.tempC;
+      document.getElementById('sliderValTemp').textContent = `${Math.round(state.tempC)} °C`;
+    }
+
+    function injectGatePinchDecay() {
+      // Artificially drop duty cycle into weak off zone
+      state.dutyCycle = Math.max(10, state.dutyCycle - 25);
+      document.getElementById('sliderDuty').value = state.dutyCycle;
+      document.getElementById('sliderValDuty').textContent = `${state.dutyCycle.toFixed(1)} %`;
+    }
+
+    function resetToNominalVenus() {
+      state.tempC = 465;
+      state.dutyCycle = 62.5;
+      state.pressureAtm = 92;
+      state.autoShed = true;
+      state.channels.ch1 = true;
+      state.channels.ch2 = true;
+      state.channels.ch3 = true;
+      state.channels.ch4 = true;
+
+      document.getElementById('sliderTemp').value = 465;
+      document.getElementById('sliderValTemp').textContent = "465 °C";
+      document.getElementById('sliderDuty').value = 62.5;
+      document.getElementById('sliderValDuty').textContent = "62.5 %";
+      document.getElementById('sliderPressure').value = 92;
+      document.getElementById('sliderValPressure').textContent = "92.0 atm";
+      document.getElementById('autoShedToggle').checked = true;
+
+      if (phaseChart) {
+        phaseChart.data.datasets[2].data = [];
+      }
+    }
+
+    // ==========================================
+    // INITIALIZATION ON WINDOW LOAD
+    // ==========================================
+    window.addEventListener('load', () => {
+      // 1. Initialize Lucide Icons
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+
+      // 2. Setup Canvas
+      resizeCanvas();
+      initParticles();
+
+      // 3. Initialize Charts
+      initCharts();
+
+      // 4. Start Physics & Telemetry Engine Loop (~25 FPS for smooth particles)
+      setInterval(simulationStep, 40);
+
+      // Window resize handler for responsive canvas
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+      });
+    });
+  </script>
+</body>
+</html>
